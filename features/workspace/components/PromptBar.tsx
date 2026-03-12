@@ -21,7 +21,7 @@ const ASPECT_RATIOS: GenerateImageRequest["aspect_ratio"][] = [
 ];
 
 export function PromptBar() {
-  const { baseImage, layers, selectedLayerId, addPromptHistory, updateHistoryImage } =
+  const { layers, selectedLayerId, addPromptHistory, updateHistoryImage } =
     useWorkspaceStore();
 
   const generateMutation = useGenerateImage();
@@ -43,14 +43,6 @@ export function PromptBar() {
     if (!prompt.trim() || isLoading) return;
 
     const trimmedPrompt = prompt.trim();
-    const historyId = uuidv4();
-
-    addPromptHistory({
-      id: historyId,
-      prompt: trimmedPrompt,
-      timestamp: Date.now(),
-      layerId: selectedLayer?.id,
-    });
 
     if (canEditLayer) {
       // Edit the selected layer
@@ -62,6 +54,12 @@ export function PromptBar() {
       });
     } else if (canGenerate) {
       // Generate a new base image (works even if baseImage already exists)
+      const historyId = uuidv4();
+      addPromptHistory({
+        id: historyId,
+        prompt: trimmedPrompt,
+        timestamp: Date.now(),
+      });
       lastHistoryIdRef.current = historyId;
       generateMutation.mutate(
         { prompt: trimmedPrompt, aspect_ratio: aspectRatio },

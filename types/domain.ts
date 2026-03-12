@@ -34,4 +34,12 @@ export interface PromptHistoryEntry {
   baseImage?: BaseImage;
 }
 
+export interface EditHistoryEntry {
+  id: string;
+  layerId: string;
+  prompt: string;
+  dataUrl: string;
+  timestamp: number;
+}
+
 export type ViewMode = "single" | "all";

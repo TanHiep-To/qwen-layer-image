@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { BaseImage, Layer, LayerTransform, PromptHistoryEntry, ViewMode } from "@/types/domain";
+import type { BaseImage, EditHistoryEntry, Layer, LayerTransform, PromptHistoryEntry, ViewMode } from "@/types/domain";
 
 interface WorkspaceState {
   baseImage: BaseImage | null;
@@ -7,6 +7,8 @@ interface WorkspaceState {
   selectedLayerId: string | null;
   viewMode: ViewMode;
   promptHistory: PromptHistoryEntry[];
+  /** Per-layer edit history (prompt + resulting image) */
+  editHistory: EditHistoryEntry[];
   /** The working resolution for the canvas (from split layer dimensions) */
   canvasSize: { width: number; height: number } | null;
 
@@ -15,6 +17,10 @@ interface WorkspaceState {
   isSplitting: boolean;
   isSplitPreview: boolean;
   showOriginalImage: boolean;
+
+  /** Loading states for API calls */
+  isGenerating: boolean;
+  isEditingLayer: boolean;
 }
 
 interface WorkspaceActions {
@@ -26,6 +32,8 @@ interface WorkspaceActions {
   setViewMode: (mode: ViewMode) => void;
   addPromptHistory: (entry: PromptHistoryEntry) => void;
   updateHistoryImage: (historyId: string, image: BaseImage) => void;
+  addEditHistory: (entry: EditHistoryEntry) => void;
+  restoreEditHistory: (entryId: string) => void;
   reset: () => void;
   /** Reset flow back to step 1 but keep prompt history */
   resetFlow: () => void;
@@ -37,6 +45,8 @@ interface WorkspaceActions {
   setIsSplitting: (isSplitting: boolean) => void;
   setIsSplitPreview: (isPreview: boolean) => void;
   setShowOriginalImage: (show: boolean) => void;
+  setIsGenerating: (v: boolean) => void;
+  setIsEditingLayer: (v: boolean) => void;
 }
 
 const initialState: WorkspaceState = {
@@ -45,12 +55,15 @@ const initialState: WorkspaceState = {
   selectedLayerId: null,
   viewMode: "single",
   promptHistory: [],
+  editHistory: [],
   canvasSize: null,
   numLayers: 3,
   splitLayers: [],
   isSplitting: false,
   isSplitPreview: false,
   showOriginalImage: false,
+  isGenerating: false,
+  isEditingLayer: false,
 };
 
 export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set) => ({
@@ -88,6 +101,22 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set)
       ),
     })),
 
+  addEditHistory: (entry) =>
+    set((state) => ({
+      editHistory: [entry, ...state.editHistory],
+    })),
+
+  restoreEditHistory: (entryId) =>
+    set((state) => {
+      const entry = state.editHistory.find((e) => e.id === entryId);
+      if (!entry) return state;
+      return {
+        layers: state.layers.map((layer) =>
+          layer.id === entry.layerId ? { ...layer, dataUrl: entry.dataUrl } : layer,
+        ),
+      };
+    }),
+
   reset: () => set(initialState),
 
   resetFlow: () =>
@@ -103,4 +132,6 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set)
   setIsSplitting: (isSplitting) => set({ isSplitting }),
   setIsSplitPreview: (isSplitPreview) => set({ isSplitPreview }),
   setShowOriginalImage: (show: boolean) => set({ showOriginalImage: show }),
+  setIsGenerating: (v) => set({ isGenerating: v }),
+  setIsEditingLayer: (v) => set({ isEditingLayer: v }),
 }));

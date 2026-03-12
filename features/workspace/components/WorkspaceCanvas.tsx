@@ -235,7 +235,9 @@ export function WorkspaceCanvas({ stageRef }: WorkspaceCanvasProps) {
     splitLayers,
     isSplitting,
     numLayers,
-    showOriginalImage
+    showOriginalImage,
+    isGenerating,
+    isEditingLayer,
   } = useWorkspaceStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -417,6 +419,16 @@ export function WorkspaceCanvas({ stageRef }: WorkspaceCanvasProps) {
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <p className="rounded-lg bg-background/80 px-6 py-3 text-sm font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
               Select a layer from the right panel to start editing
+            </p>
+          </div>
+        )}
+
+        {/* Loading overlay for API calls */}
+        {(isGenerating || isEditingLayer) && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="mt-4 text-sm font-medium text-muted-foreground">
+              {isGenerating ? "Generating image…" : "Editing layer…"}
             </p>
           </div>
         )}
