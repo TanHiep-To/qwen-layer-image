@@ -30,6 +30,8 @@ export interface PromptHistoryEntry {
   prompt: string;
   timestamp: number;
   layerId?: string;
+  /** The base image that was generated/active when this prompt was used */
+  baseImage?: BaseImage;
 }
 
 export type ViewMode = "single" | "all";

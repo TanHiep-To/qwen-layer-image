@@ -7,7 +7,7 @@ import { useWorkspaceStore } from "@/features/workspace/store/workspaceStore";
 import { exportStageToPng } from "@/utils/canvas";
 import type { ViewMode } from "@/types/domain";
 import { useHealthCheck } from "@/services/healthService";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TopNavProps {
@@ -15,14 +15,14 @@ interface TopNavProps {
 }
 
 export function TopNav({ stageRef }: TopNavProps) {
-  const { viewMode, setViewMode, showOriginalImage, setShowOriginalImage } = useWorkspaceStore();
+  const { viewMode, setViewMode, showOriginalImage, setShowOriginalImage, resetFlow, canvasSize } = useWorkspaceStore();
   const { data, isError } = useHealthCheck();
 
   const health = data === 'Healthcheck: OK'
 
   function handleDownload() {
     if (stageRef.current) {
-      exportStageToPng(stageRef.current);
+      exportStageToPng(stageRef.current, canvasSize?.width, canvasSize?.height);
     }
   }
 
@@ -43,8 +43,8 @@ export function TopNav({ stageRef }: TopNavProps) {
           onValueChange={(v) => setViewMode(v as ViewMode)}
         >
           <TabsList>
-            <TabsTrigger value="single" className="cursor-pointer">Single</TabsTrigger>
-            <TabsTrigger value="all" className="cursor-pointer">All</TabsTrigger>
+            <TabsTrigger value="single" className="cursor-pointer">Single Layer</TabsTrigger>
+            <TabsTrigger value="all" className="cursor-pointer">All Layers</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -63,10 +63,16 @@ export function TopNav({ stageRef }: TopNavProps) {
         </label>
       </div>
 
-      <Button variant="outline" size="sm" onClick={handleDownload}>
-        <DownloadIcon className="mr-2 h-4 w-4" />
-        Download
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={handleDownload}>
+          <DownloadIcon className="mr-2 h-4 w-4" />
+          <b>Download</b>
+        </Button>
+        <Button variant="outline" size="sm" onClick={resetFlow} title="Start again from the beginning">
+          <RotateCcw className="mr-2 h-4 w-4" />
+          Start Again
+        </Button>
+      </div>
     </header>
   );
 }

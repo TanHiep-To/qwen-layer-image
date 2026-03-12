@@ -23,6 +23,12 @@ export function LayerPanel() {
         </p>
       )}
 
+      {layers.length > 0 && !selectedLayerId && (
+        <p className="px-4 py-2 text-xs font-medium text-primary">
+          Select a layer below to start editing
+        </p>
+      )}
+
       <ScrollArea className="flex-1">
         <div className="space-y-2 p-3">
           {layers.map((layer, index) => (

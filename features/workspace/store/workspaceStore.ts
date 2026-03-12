@@ -7,6 +7,8 @@ interface WorkspaceState {
   selectedLayerId: string | null;
   viewMode: ViewMode;
   promptHistory: PromptHistoryEntry[];
+  /** The working resolution for the canvas (from split layer dimensions) */
+  canvasSize: { width: number; height: number } | null;
 
   numLayers: number;
   splitLayers: Layer[];
@@ -23,7 +25,11 @@ interface WorkspaceActions {
   updateLayerDataUrl: (id: string, dataUrl: string) => void;
   setViewMode: (mode: ViewMode) => void;
   addPromptHistory: (entry: PromptHistoryEntry) => void;
+  updateHistoryImage: (historyId: string, image: BaseImage) => void;
   reset: () => void;
+  /** Reset flow back to step 1 but keep prompt history */
+  resetFlow: () => void;
+  setCanvasSize: (size: { width: number; height: number } | null) => void;
 
   // Split Layers Actions
   setNumLayers: (num: number) => void;
@@ -39,6 +45,7 @@ const initialState: WorkspaceState = {
   selectedLayerId: null,
   viewMode: "single",
   promptHistory: [],
+  canvasSize: null,
   numLayers: 3,
   splitLayers: [],
   isSplitting: false,
@@ -74,7 +81,22 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set)
       promptHistory: [entry, ...state.promptHistory],
     })),
 
+  updateHistoryImage: (historyId, image) =>
+    set((state) => ({
+      promptHistory: state.promptHistory.map((entry) =>
+        entry.id === historyId ? { ...entry, baseImage: image } : entry,
+      ),
+    })),
+
   reset: () => set(initialState),
+
+  resetFlow: () =>
+    set((state) => ({
+      ...initialState,
+      promptHistory: state.promptHistory,
+    })),
+
+  setCanvasSize: (size) => set({ canvasSize: size }),
 
   setNumLayers: (num) => set({ numLayers: num }),
   setSplitLayers: (layers) => set({ splitLayers: layers }),

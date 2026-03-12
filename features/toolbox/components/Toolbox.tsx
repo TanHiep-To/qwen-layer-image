@@ -1,6 +1,7 @@
 "use client";
 
-import { FlipHorizontal2, FlipVertical2 } from "lucide-react";
+import { useState } from "react";
+import { FlipHorizontal2, FlipVertical2, History, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -8,36 +9,35 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Layers } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useWorkspaceStore } from "@/features/workspace/store/workspaceStore";
-import { useSplitLayers } from "@/services/imageService";
-import { dataUrlToFile } from "@/utils/base64";
+import type { PromptHistoryEntry } from "@/types/domain";
 
 export function Toolbox() {
   const {
-    baseImage,
     layers,
     selectedLayerId,
     promptHistory,
     updateLayerTransform,
-    numLayers,
-    setNumLayers,
-    isSplitting,
-    isSplitPreview,
+    setBaseImage,
+    setLayers,
+    setIsSplitPreview,
+    setSplitLayers,
+    selectLayer,
   } = useWorkspaceStore();
 
-  const splitMutation = useSplitLayers();
+  const [pendingHistoryEntry, setPendingHistoryEntry] = useState<PromptHistoryEntry | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) ?? null;
   const t = selectedLayer?.transform;
-
-  const showSplitControls = !!baseImage && layers.length === 0 && !isSplitPreview;
-
-  function handleSplitConfirm() {
-    if (!baseImage) return;
-    const file = dataUrlToFile(baseImage.dataUrl, "base_image.png");
-    splitMutation.mutate({ input_image: file, num_layers: numLayers });
-  }
 
   function update(partial: Parameters<typeof updateLayerTransform>[1]) {
     if (!selectedLayerId) return;
@@ -45,57 +45,20 @@ export function Toolbox() {
   }
 
   return (
-    <aside className="flex h-full w-[280px] flex-col overflow-hidden border-r bg-background">
-      <div className="p-4">
-        <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Toolbox
-        </p>
+    <aside className="flex h-full w-[280px] flex-col border-r bg-background">
+      {/* Toolbox controls — takes remaining space, scrollable */}
+      <ScrollArea className="flex-1">
+        <div className="p-4">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Toolbox
+          </p>
 
-        {!selectedLayer && !showSplitControls && (
-          <p className="text-xs text-muted-foreground">Select a layer to edit its properties.</p>
-        )}
+          {!selectedLayer && (
+            <p className="text-xs text-muted-foreground">Select a layer to edit its properties.</p>
+          )}
 
-        {showSplitControls && (
-          <div className="space-y-4 rounded-md border p-3 bg-muted/20">
-            <div>
-              <Label className="mb-2 block text-xs font-medium text-muted-foreground">
-                Layers to Split
-              </Label>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setNumLayers(Math.max(2, numLayers - 1))}
-                  disabled={numLayers <= 2 || isSplitting}
-                >
-                  -
-                </Button>
-                <span className="w-4 text-center text-sm font-medium">{numLayers}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setNumLayers(Math.min(6, numLayers + 1))}
-                  disabled={numLayers >= 6 || isSplitting}
-                >
-                  +
-                </Button>
-              </div>
-            </div>
-            <Button
-              className="w-full"
-              onClick={handleSplitConfirm}
-              disabled={isSplitting}
-            >
-              <Layers className="mr-2 h-4 w-4" />
-              {isSplitting ? "Splitting layers..." : "Split Layers"}
-            </Button>
-          </div>
-        )}
-
-        {selectedLayer && (
-          <div className="space-y-5">
+          {selectedLayer && (
+            <div className="space-y-5">
             {/* Translate */}
             <section>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Translate</p>
@@ -237,38 +200,126 @@ export function Toolbox() {
             </section>
           </div>
         )}
-      </div>
+        </div>
+      </ScrollArea>
 
-      <Separator />
-
-      {/* Prompt History */}
-      <div className="flex flex-1 flex-col overflow-hidden p-4">
-        <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Prompt History
-        </p>
-        <ScrollArea className="flex-1">
-          {promptHistory.length === 0 && (
-            <p className="text-xs text-muted-foreground">No prompts yet.</p>
-          )}
-          <div className="space-y-2">
-            {promptHistory.map((entry) => (
-              <div key={entry.id} className="rounded-md border p-2">
-                <p className="text-xs">{entry.prompt}</p>
-                <div className="mt-1 flex items-center gap-1">
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
-                  {entry.layerId && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      Layer edit
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+      {/* Prompt History — collapsible panel anchored at bottom */}
+      <div className="flex shrink-0 flex-col border-t">
+        {/* Toggle button — always visible */}
+        <button
+          className="flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-muted/50"
+          onClick={() => setHistoryOpen(!historyOpen)}
+        >
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Prompt History
+            </span>
+            {promptHistory.length > 0 && (
+              <Badge variant="secondary" className="text-[10px]">
+                {promptHistory.length}
+              </Badge>
+            )}
           </div>
-        </ScrollArea>
+          <ChevronUp
+            className={`h-4 w-4 text-muted-foreground transition-transform ${historyOpen ? "" : "rotate-180"}`}
+          />
+        </button>
+
+        {/* Expandable history content */}
+        {historyOpen && (
+          <div className="border-t">
+            <ScrollArea className="h-[300px]">
+              <div className="space-y-2 p-3">
+                {promptHistory.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No prompts yet.</p>
+                )}
+                {promptHistory.map((entry) => (
+                  <button
+                    key={entry.id}
+                    className="w-full cursor-pointer rounded-md border p-2 text-left transition-colors hover:bg-muted/50"
+                    onClick={() => handleHistoryClick(entry)}
+                  >
+                    <p className="text-xs">{entry.prompt}</p>
+                    {entry.baseImage && (
+                      <div className="mt-1.5 overflow-hidden rounded border bg-muted/30">
+                        <img
+                          src={entry.baseImage.dataUrl}
+                          alt="Generated"
+                          className="h-20 w-full object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(entry.timestamp).toLocaleTimeString()}
+                      </span>
+                      {entry.layerId && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Layer edit
+                        </Badge>
+                      )}
+                      {entry.baseImage && (
+                        <Badge variant="outline" className="text-[10px]">
+                          Generated
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
       </div>
+
+      {/* Warning dialog when clicking history during editing */}
+      <Dialog open={!!pendingHistoryEntry} onOpenChange={(open) => { if (!open) setPendingHistoryEntry(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard current editing?</DialogTitle>
+            <DialogDescription>
+              You are currently editing layers. Jumping to this history item will discard your current editing progress. Do you want to continue?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingHistoryEntry(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pendingHistoryEntry?.baseImage) {
+                  jumpToHistoryImage(pendingHistoryEntry);
+                }
+                setPendingHistoryEntry(null);
+              }}
+            >
+              Discard & Jump
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
+
+  function handleHistoryClick(entry: PromptHistoryEntry) {
+    if (!entry.baseImage) return;
+
+    const isEditing = layers.length > 0;
+    if (isEditing) {
+      setPendingHistoryEntry(entry);
+    } else {
+      jumpToHistoryImage(entry);
+    }
+  }
+
+  function jumpToHistoryImage(entry: PromptHistoryEntry) {
+    if (!entry.baseImage) return;
+    setLayers([]);
+    setSplitLayers([]);
+    setIsSplitPreview(false);
+    selectLayer(null);
+    setBaseImage(entry.baseImage);
+  }
 }

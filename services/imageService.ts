@@ -32,7 +32,7 @@ export function useGenerateImage() {
 }
 
 export function useSplitLayers() {
-  const { setSplitLayers, setIsSplitting, setIsSplitPreview } = useWorkspaceStore();
+  const { setSplitLayers, setIsSplitting, setIsSplitPreview, setCanvasSize } = useWorkspaceStore();
 
   return useMutation({
     mutationFn: async ({ input_image, num_layers }: SplitLayersRequest) => {
@@ -47,7 +47,7 @@ export function useSplitLayers() {
     onSettled: () => {
       setIsSplitting(false);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const layers = data.layers.map((b64, index) => ({
         id: uuidv4(),
         name: `Layer ${index + 1}`,
@@ -57,6 +57,12 @@ export function useSplitLayers() {
       }));
       setSplitLayers(layers);
       setIsSplitPreview(true);
+
+      // Determine working canvas size from the first layer's dimensions
+      if (layers.length > 0) {
+        const dims = await getImageDimensions(layers[0].dataUrl);
+        setCanvasSize({ width: dims.width, height: dims.height });
+      }
     },
   });
 }

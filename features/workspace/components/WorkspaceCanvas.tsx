@@ -367,14 +367,25 @@ export function WorkspaceCanvas({ stageRef }: WorkspaceCanvasProps) {
                 />
               )}
 
-              {showBase && baseImg && !isTopBottom && (
-                <Image
-                  image={baseImg}
-                  x={(size.width - imgWidth) / 2}
-                  y={(size.height - imgHeight) / 2}
-                  listening={false}
-                />
-              )}
+              {showBase && baseImg && !isTopBottom && (() => {
+                // Scale image to fit within the canvas with padding
+                const fitPadding = 40;
+                const fitScaleX = (size.width - fitPadding * 2) / imgWidth;
+                const fitScaleY = (size.height - fitPadding * 2) / imgHeight;
+                const fitScale = Math.min(fitScaleX, fitScaleY, 1);
+                const scaledW = imgWidth * fitScale;
+                const scaledH = imgHeight * fitScale;
+                return (
+                  <Image
+                    image={baseImg}
+                    x={(size.width - scaledW) / 2}
+                    y={(size.height - scaledH) / 2}
+                    width={scaledW}
+                    height={scaledH}
+                    listening={false}
+                  />
+                );
+              })()}
               {visibleLayers.map((layer) => {
                 const overrideFrame = isTopBottom ? {
                   x: centerX,
@@ -401,6 +412,13 @@ export function WorkspaceCanvas({ stageRef }: WorkspaceCanvasProps) {
         )}
         {!baseImg && layers.length === 0 && !isSplitting && !isSplitPreview && (
           <UploadZone />
+        )}
+        {layers.length > 0 && !selectedLayerId && viewMode === "single" && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="rounded-lg bg-background/80 px-6 py-3 text-sm font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+              Select a layer from the right panel to start editing
+            </p>
+          </div>
         )}
       </div>
     </div>
