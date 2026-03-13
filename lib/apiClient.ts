@@ -1,13 +1,11 @@
 const isVercel =
   process.env.NEXT_PUBLIC_VERCEL_ENV === "production" ||
   process.env.NEXT_PUBLIC_VERCEL_ENV === "preview";
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL &&
-  !process.env.NEXT_PUBLIC_API_BASE_URL.startsWith("http://101")
-    ? process.env.NEXT_PUBLIC_API_BASE_URL
-    : isVercel
-      ? "/api-proxy"
-      : "http://localhost:8000";
+// On Vercel, always use the proxy to avoid CORS/mixed-content issues.
+// Locally, use the env var if set, otherwise fallback to localhost.
+const BASE_URL = isVercel
+  ? "/api-proxy"
+  : process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);

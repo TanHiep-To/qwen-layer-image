@@ -14,7 +14,7 @@ import type {
 } from "@/types/api";
 
 export function useGenerateImage() {
-  const { setBaseImage } = useWorkspaceStore();
+  const { setBaseImage, setIsGenerating } = useWorkspaceStore();
 
   return useMutation({
     mutationFn: async ({ prompt, aspect_ratio }: GenerateImageRequest) => {
@@ -22,6 +22,12 @@ export function useGenerateImage() {
       form.append("prompt", prompt);
       if (aspect_ratio) form.append("aspect_ratio", aspect_ratio);
       return postMultipart<GenerateImageResponse>("/api/generate", form);
+    },
+    onMutate: () => {
+      setIsGenerating(true);
+    },
+    onSettled: () => {
+      setIsGenerating(false);
     },
     onSuccess: async (data) => {
       const dataUrl = base64ToDataUrl(data.image, "image/png");
@@ -32,7 +38,7 @@ export function useGenerateImage() {
 }
 
 export function useSplitLayers() {
-  const { setSplitLayers, setIsSplitting, setIsSplitPreview } = useWorkspaceStore();
+  const { setSplitLayers, setIsSplitting, setIsSplitPreview, setCanvasSize } = useWorkspaceStore();
 
   return useMutation({
     mutationFn: async ({ input_image, num_layers }: SplitLayersRequest) => {
@@ -47,7 +53,7 @@ export function useSplitLayers() {
     onSettled: () => {
       setIsSplitting(false);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const layers = data.layers.map((b64, index) => ({
         id: uuidv4(),
         name: `Layer ${index + 1}`,
@@ -57,12 +63,18 @@ export function useSplitLayers() {
       }));
       setSplitLayers(layers);
       setIsSplitPreview(true);
+
+      // Determine working canvas size from the first layer's dimensions
+      if (layers.length > 0) {
+        const dims = await getImageDimensions(layers[0].dataUrl);
+        setCanvasSize({ width: dims.width, height: dims.height });
+      }
     },
   });
 }
 
 export function useEditLayer() {
-  const { updateLayerDataUrl } = useWorkspaceStore();
+  const { updateLayerDataUrl, setIsEditingLayer, addEditHistory } = useWorkspaceStore();
 
   return useMutation({
     mutationFn: async ({
@@ -74,11 +86,24 @@ export function useEditLayer() {
       form.append("input_image", input_image);
       form.append("prompt", prompt);
       const data = await postMultipart<EditLayerResponse>("/api/edit-layer", form);
-      return { data, layerId };
+      return { data, layerId, prompt };
     },
-    onSuccess: ({ data, layerId }) => {
+    onMutate: () => {
+      setIsEditingLayer(true);
+    },
+    onSettled: () => {
+      setIsEditingLayer(false);
+    },
+    onSuccess: ({ data, layerId, prompt }) => {
       const dataUrl = base64ToDataUrl(data.image, "image/png");
       updateLayerDataUrl(layerId, dataUrl);
+      addEditHistory({
+        id: uuidv4(),
+        layerId,
+        prompt,
+        dataUrl,
+        timestamp: Date.now(),
+      });
     },
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Send } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ const ASPECT_RATIOS: GenerateImageRequest["aspect_ratio"][] = [
 ];
 
 export function PromptBar() {
-  const { baseImage, layers, selectedLayerId, addPromptHistory } =
+  const { layers, selectedLayerId, addPromptHistory, updateHistoryImage } =
     useWorkspaceStore();
 
   const generateMutation = useGenerateImage();
@@ -29,9 +29,14 @@ export function PromptBar() {
 
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<GenerateImageRequest["aspect_ratio"]>("1:1");
+  const lastHistoryIdRef = useRef<string | null>(null);
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) ?? null;
   const isLoading = generateMutation.isPending || editLayerMutation.isPending;
+
+  // Allow generating when: no layers committed yet (even if baseImage exists from a prior generation)
+  const canGenerate = layers.length === 0;
+  const canEditLayer = !!selectedLayer;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,17 +44,7 @@ export function PromptBar() {
 
     const trimmedPrompt = prompt.trim();
 
-    addPromptHistory({
-      id: uuidv4(),
-      prompt: trimmedPrompt,
-      timestamp: Date.now(),
-      layerId: selectedLayer?.id,
-    });
-
-    if (!baseImage) {
-      // Generate a new base image
-      generateMutation.mutate({ prompt: trimmedPrompt, aspect_ratio: aspectRatio });
-    } else if (selectedLayer) {
+    if (canEditLayer) {
       // Edit the selected layer
       const file = splitLayerImageToFile(selectedLayer.dataUrl, selectedLayer.name);
       editLayerMutation.mutate({
@@ -57,23 +52,45 @@ export function PromptBar() {
         input_image: file,
         prompt: trimmedPrompt,
       });
+    } else if (canGenerate) {
+      // Generate a new base image (works even if baseImage already exists)
+      const historyId = uuidv4();
+      addPromptHistory({
+        id: historyId,
+        prompt: trimmedPrompt,
+        timestamp: Date.now(),
+      });
+      lastHistoryIdRef.current = historyId;
+      generateMutation.mutate(
+        { prompt: trimmedPrompt, aspect_ratio: aspectRatio },
+        {
+          onSuccess: () => {
+            // After generation succeeds, store the new baseImage in the history entry
+            const newBaseImage = useWorkspaceStore.getState().baseImage;
+            if (newBaseImage && lastHistoryIdRef.current) {
+              updateHistoryImage(lastHistoryIdRef.current, newBaseImage);
+            }
+          },
+        },
+      );
     }
-
-    setPrompt("");
+    // Do NOT clear prompt — keep old prompt for user convenience
   }
 
   const placeholder =
-    selectedLayer
-      ? `Edit "${selectedLayer.name}" — describe changes…`
-      : baseImage
-        ? "Select a layer to edit it with AI"
-        : "Describe an image to generate…";
+    canEditLayer
+      ? `Edit "${selectedLayer!.name}" — describe changes…`
+      : canGenerate
+        ? "Describe an image to generate…"
+        : "Select a layer to edit it with AI";
+
+  const isDisabled = isLoading || (!canGenerate && !canEditLayer);
 
   return (
     <footer className="border-t bg-background p-3">
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        {/* Aspect ratio selector (only when no base image) */}
-        {!baseImage && (
+        {/* Aspect ratio selector (when generating is possible) */}
+        {canGenerate && !canEditLayer && (
           <Select
             value={aspectRatio}
             onValueChange={(v) => setAspectRatio(v as GenerateImageRequest["aspect_ratio"])}
@@ -81,7 +98,7 @@ export function PromptBar() {
             <SelectTrigger className="w-24 cursor-pointer">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent 
+            <SelectContent
               position="popper"
             >
               <SelectGroup>
@@ -100,18 +117,14 @@ export function PromptBar() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={placeholder}
-          disabled={isLoading || (!!baseImage && !selectedLayer && layers.length > 0)}
+          disabled={isDisabled}
           className="flex-1"
         />
 
         {/* Submit */}
         <Button
           type="submit"
-          disabled={
-            isLoading ||
-            !prompt.trim() ||
-            (!!baseImage && !selectedLayer && layers.length > 0)
-          }
+          disabled={isDisabled || !prompt.trim()}
         >
           <Send className="mr-2 h-4 w-4" />
           {isLoading ? "Working…" : "Send"}
