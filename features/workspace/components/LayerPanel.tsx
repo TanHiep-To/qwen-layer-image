@@ -1,20 +1,60 @@
 "use client";
 
+import { useRef, useState } from "react";
 import NextImage from "next/image";
-import { History } from "lucide-react";
+import { GripVertical, History } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspaceStore } from "@/features/workspace/store/workspaceStore";
 import { cn } from "@/lib/utils";
 
 export function LayerPanel() {
-  const { layers, selectedLayerId, selectLayer, editHistory, restoreEditHistory } =
+  const { layers, selectedLayerId, selectLayer, editHistory, restoreEditHistory, reorderLayers } =
     useWorkspaceStore();
+
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const dragNodeRef = useRef<HTMLDivElement | null>(null);
 
   // Edit history for the currently selected layer
   const selectedEditHistory = selectedLayerId
     ? editHistory.filter((e) => e.layerId === selectedLayerId)
     : [];
+
+  function handleDragStart(e: React.DragEvent, index: number) {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Make the drag image slightly transparent
+    if (dragNodeRef.current) {
+      e.dataTransfer.setDragImage(dragNodeRef.current, 0, 0);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragIndex !== null && index !== dragIndex) {
+      setDropIndex(index);
+    }
+  }
+
+  function handleDragLeave() {
+    setDropIndex(null);
+  }
+
+  function handleDrop(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    if (dragIndex !== null && dragIndex !== index) {
+      reorderLayers(dragIndex, index);
+    }
+    setDragIndex(null);
+    setDropIndex(null);
+  }
+
+  function handleDragEnd() {
+    setDragIndex(null);
+    setDropIndex(null);
+  }
 
   return (
     <aside className="flex h-full w-[280px] flex-col overflow-hidden border-l bg-background">
@@ -22,6 +62,11 @@ export function LayerPanel() {
         <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Layers
         </p>
+        {layers.length > 1 && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Drag to reorder (top = front)
+          </p>
+        )}
       </div>
 
       {layers.length === 0 && (
@@ -36,34 +81,50 @@ export function LayerPanel() {
         </p>
       )}
 
+      {/* Hidden element used as drag ghost */}
+      <div ref={dragNodeRef} className="fixed -left-[9999px]" aria-hidden />
+
       <ScrollArea className="flex-1">
-        <div className="space-y-2 p-3">
-          {layers.map((layer, index) => (
-            <button
-              key={layer.id}
-              onClick={() => selectLayer(layer.id)}
-              className={cn(
-                "cursor-pointer flex w-full items-center gap-3 rounded-md border p-2 text-left transition-colors hover:bg-muted",
-                selectedLayerId === layer.id && "border-primary bg-primary/5",
-              )}
-            >
-              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded border bg-muted/50">
-                <NextImage
-                  src={layer.dataUrl}
-                  alt={layer.name}
-                  fill
-                  className="object-contain"
-                  unoptimized
-                />
+        <div className="space-y-1 p-3">
+          {/* Display in reverse: top of list = front (last in array = drawn on top in canvas) */}
+          {[...layers].reverse().map((layer) => {
+            const realIndex = layers.indexOf(layer);
+            return (
+              <div
+                key={layer.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, realIndex)}
+                onDragOver={(e) => handleDragOver(e, realIndex)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, realIndex)}
+                onDragEnd={handleDragEnd}
+                onClick={() => selectLayer(layer.id)}
+                className={cn(
+                  "flex w-full cursor-pointer items-center gap-2 rounded-md border p-2 text-left transition-all hover:bg-muted",
+                  selectedLayerId === layer.id && "border-primary bg-primary/5",
+                  dragIndex === realIndex && "opacity-40",
+                  dropIndex === realIndex && "border-primary border-dashed bg-primary/10",
+                )}
+              >
+                <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/50 active:cursor-grabbing" />
+                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded border bg-muted/50">
+                  <NextImage
+                    src={layer.dataUrl}
+                    alt={layer.name}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium">{layer.name}</p>
+                  <Badge variant="outline" className="mt-0.5 text-[10px]">
+                    Layer {realIndex + 1}
+                  </Badge>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium">{layer.name}</p>
-                <Badge variant="outline" className="mt-0.5 text-[10px]">
-                  Layer {index + 1}
-                </Badge>
-              </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
 
         {/* Edit history for selected layer */}

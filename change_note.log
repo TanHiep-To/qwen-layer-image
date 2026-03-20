@@ -1,0 +1,30 @@
+# Generate images:
+- Allow re-generating images from prompt without refreshing (keep old prompt)
+- Prompt history:
+    + Add collapsible Prompt History panel in left sidebar with image thumbnails
+    + Click history items to jump back to that generated image (with warning if editing)
+- Update UI:
+    + Fix large scale size that lead to cropped image view.
+
+# Split layers
+- Update UI:
+    + Move split layer control to center workspace.
+    + Allow start editing with or without splitting (single layer fallback)
+
+# Edit layers
+- Add "Edit History" for each layer. Click on the item restore that layer's image data at that moment.
+- Drag and drop layers to change their order.
+
+# Download edited images
+- Fix wrong download outputs:
+    + Export at layer/canvas resolution, not viewport size
+    + Hide transformer bounding boxes
+    + Crop out-of-canvas content
+
+# Other UI stuffs:
+- Add "Start Again" button to reset the application flow while keeping history
+- Add loading overlay when calling APIs
+- Add "Select a layer to start editing" hint in canvas and layer panel
+
+# Other logic stuffs:
+- Fix API base URL logic: use env var locally, proxy on Vercel

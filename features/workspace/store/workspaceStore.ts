@@ -34,6 +34,7 @@ interface WorkspaceActions {
   updateHistoryImage: (historyId: string, image: BaseImage) => void;
   addEditHistory: (entry: EditHistoryEntry) => void;
   restoreEditHistory: (entryId: string) => void;
+  reorderLayers: (fromIndex: number, toIndex: number) => void;
   reset: () => void;
   /** Reset flow back to step 1 but keep prompt history */
   resetFlow: () => void;
@@ -115,6 +116,15 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set)
           layer.id === entry.layerId ? { ...layer, dataUrl: entry.dataUrl } : layer,
         ),
       };
+    }),
+
+  reorderLayers: (fromIndex, toIndex) =>
+    set((state) => {
+      if (fromIndex === toIndex) return state;
+      const newLayers = [...state.layers];
+      const [moved] = newLayers.splice(fromIndex, 1);
+      newLayers.splice(toIndex, 0, moved);
+      return { layers: newLayers };
     }),
 
   reset: () => set(initialState),
